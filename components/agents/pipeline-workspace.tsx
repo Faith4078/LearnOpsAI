@@ -1,6 +1,7 @@
 "use client";
 
 import { AgentTimeline } from "@/components/agents/agent-timeline";
+import { PublishCard } from "@/components/agents/publish-card";
 import { GenerationSkeleton } from "@/components/agents/generation-skeleton";
 import { ResultCards } from "@/components/agents/result-cards";
 import { DocumentationForm } from "@/components/upload/documentation-form";
@@ -17,8 +18,21 @@ const STAGE_MESSAGES = {
  * progress and result cards showing the reviewed bundle.
  */
 export function PipelineWorkspace() {
-  const { bundle, stage, failedStage, isGenerating, generate } =
-    useContentGeneration();
+  const {
+    bundle,
+    stage,
+    failedStage,
+    publishedSlug,
+    isGenerating,
+    generate,
+    publish,
+  } = useContentGeneration();
+
+  const isPublishableStage =
+    stage === "done" ||
+    stage === "publishing" ||
+    stage === "published" ||
+    (stage === "error" && failedStage === "publishing");
 
   return (
     <div className="grid gap-10">
@@ -40,8 +54,13 @@ export function PipelineWorkspace() {
           }
         />
       )}
-      {stage === "done" && bundle !== null && (
-        <div className="animate-in fade-in duration-500">
+      {isPublishableStage && bundle !== null && (
+        <div className="grid gap-10 animate-in fade-in duration-500">
+          <PublishCard
+            stage={stage}
+            publishedSlug={publishedSlug}
+            onPublish={publish}
+          />
           <ResultCards bundle={bundle} />
         </div>
       )}

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
 interface DashboardShellProps {
   children: ReactNode;
@@ -10,7 +10,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
-          <p className="font-serif text-xl tracking-tight">LearnOps AI</p>
+          <p className="font-serif text-xl tracking-tight">KnowledgeOps AI</p>
           <nav aria-label="Primary">
             <ul className="flex items-center gap-8 text-sm font-medium">
               <li>

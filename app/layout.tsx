@@ -1,27 +1,27 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
-import { Toaster } from "@/components/ui/sonner";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { Geist, Geist_Mono, Source_Serif_4 } from 'next/font/google';
+import { Toaster } from '@/components/ui/sonner';
+import './globals.css';
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
 });
 
 const sourceSerif = Source_Serif_4({
-  variable: "--font-source-serif",
-  subsets: ["latin"],
+  variable: '--font-source-serif',
+  subsets: ['latin'],
 });
 
 export const metadata: Metadata = {
-  title: "LearnOps AI",
+  title: 'KnowledgeOps AI',
   description:
-    "AI-powered documentation publishing: paste docs, generate a help article, FAQs, and quiz in one pass.",
+    'AI-powered documentation publishing: paste docs, generate a help article, FAQs, and quiz in one pass.',
 };
 
 export default function RootLayout({

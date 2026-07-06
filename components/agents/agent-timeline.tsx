@@ -3,7 +3,7 @@
 import { Check, CircleAlert, LoaderCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { PipelineStage } from "@/lib/types";
+import type { FailedStage, PipelineStage } from "@/lib/types";
 
 type StepStatus = "complete" | "active" | "error" | "pending" | "disabled";
 
@@ -14,40 +14,61 @@ interface TimelineStep {
 
 interface AgentTimelineProps {
   stage: PipelineStage;
-  failedStage: "generating" | "reviewing" | null;
+  failedStage: FailedStage | null;
 }
 
 function buildSteps(
   stage: PipelineStage,
   failedStage: AgentTimelineProps["failedStage"],
 ): TimelineStep[] {
+  const reviewed =
+    stage === "done" ||
+    stage === "publishing" ||
+    stage === "published" ||
+    (stage === "error" && failedStage === "publishing");
+
   const generator: StepStatus =
     stage === "generating"
       ? "active"
       : stage === "error" && failedStage === "generating"
         ? "error"
-        : stage === "error" && failedStage === "reviewing"
+        : stage === "reviewing" || reviewed
           ? "complete"
-          : stage === "reviewing" || stage === "done"
-            ? "complete"
-            : "pending";
+          : "pending";
 
   const reviewer: StepStatus =
     stage === "reviewing"
       ? "active"
       : stage === "error" && failedStage === "reviewing"
         ? "error"
-        : stage === "done"
+        : reviewed
           ? "complete"
           : "pending";
+
+  const publishing: StepStatus =
+    stage === "publishing"
+      ? "active"
+      : stage === "error" && failedStage === "publishing"
+        ? "error"
+        : stage === "published"
+          ? "complete"
+          : stage === "done"
+            ? "pending"
+            : "disabled";
+
+  const helpCenter: StepStatus =
+    stage === "published"
+      ? "complete"
+      : stage === "done" || stage === "publishing"
+        ? "pending"
+        : "disabled";
 
   return [
     { label: "Documentation Uploaded", status: "complete" },
     { label: "Generator Agent", status: generator },
     { label: "Review Agent", status: reviewer },
-    // Wired in issue #3 — rendered as upcoming, never active.
-    { label: "Publishing", status: "disabled" },
-    { label: "Help Center Updated", status: "disabled" },
+    { label: "Publishing", status: publishing },
+    { label: "Help Center Updated", status: helpCenter },
   ];
 }
 
@@ -56,7 +77,7 @@ const STATUS_TEXT: Record<StepStatus, string> = {
   active: "In progress",
   error: "Failed",
   pending: "Waiting",
-  disabled: "Coming soon",
+  disabled: "Upcoming",
 };
 
 function StepIndicator({ status }: { status: StepStatus }) {
