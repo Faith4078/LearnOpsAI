@@ -1,4 +1,4 @@
-export { generateWithGemini, setModelCaller } from "./gemini";
+export { generateWithGemini, setModelCaller, setRetryDelays } from "./gemini";
 export { buildGeneratorPrompt, buildReviewerPrompt } from "./prompts";
 export {
   contentBundleSchema,

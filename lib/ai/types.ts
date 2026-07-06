@@ -5,7 +5,11 @@
  * types or thrown provider errors.
  */
 
-export type AiErrorCode = "missing-config" | "api-error" | "invalid-response";
+export type AiErrorCode =
+  | "missing-config"
+  | "api-error"
+  | "rate-limit"
+  | "invalid-response";
 
 export interface AiError {
   code: AiErrorCode;

@@ -13,6 +13,7 @@ export type GenerateContentErrorCode =
   | "empty-input"
   | "invalid-response"
   | "api-error"
+  | "rate-limit"
   | "missing-config";
 
 import type { ContentBundle } from "@/lib/ai/schemas";
@@ -26,6 +27,7 @@ export type GenerateContentResult =
 export type ReviewContentErrorCode =
   | "invalid-response"
   | "api-error"
+  | "rate-limit"
   | "missing-config";
 
 /** Discriminated union returned by the `reviewContent` server action. */
@@ -43,6 +45,23 @@ export type PublishContentErrorCode =
 export type PublishContentResult =
   | { status: "success"; slug: string }
   | { status: "error"; code: PublishContentErrorCode; message: string };
+
+import type { HelpArticle, HelpArticleSummary } from "@/lib/sanity/types";
+
+export type { HelpArticle, HelpArticleSummary } from "@/lib/sanity/types";
+
+/** Error codes a Help Center read can surface to the UI. */
+export type FetchArticlesErrorCode = "missing-config" | "sanity-error";
+
+/** Discriminated union returned by the `fetchArticles` server function. */
+export type FetchArticlesResult =
+  | { status: "success"; articles: HelpArticleSummary[] }
+  | { status: "error"; code: FetchArticlesErrorCode; message: string };
+
+/** Discriminated union returned by the `fetchArticleBySlug` server function. */
+export type FetchArticleResult =
+  | { status: "success"; article: HelpArticle | null }
+  | { status: "error"; code: FetchArticlesErrorCode; message: string };
 
 /** Stages of the client-side content pipeline (issues #2, #3). */
 export type PipelineStage =

@@ -1,6 +1,15 @@
 import { createClient } from "@sanity/client";
 
-import type { HelpArticleDoc, SanityResult, SanityWriter } from "./types";
+import { checkEnv } from "@/utils/env";
+
+import type {
+  HelpArticle,
+  HelpArticleDoc,
+  HelpArticleSummary,
+  SanityReader,
+  SanityResult,
+  SanityWriter,
+} from "./types";
 
 const SANITY_API_VERSION = "2025-02-19";
 
@@ -68,26 +77,109 @@ export function getSanityWriter(): SanityResult<SanityWriter> {
     return { ok: true, data: sanityWriterOverride };
   }
 
-  const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID;
-  const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET;
-  const token = process.env.SANITY_API_TOKEN;
-  const missing = [
-    ["NEXT_PUBLIC_SANITY_PROJECT_ID", projectId],
-    ["NEXT_PUBLIC_SANITY_DATASET", dataset],
-    ["SANITY_API_TOKEN", token],
-  ]
-    .filter(([, value]) => value === undefined || value.trim() === "")
-    .map(([name]) => name);
-
-  if (missing.length > 0 || !projectId || !dataset || !token) {
+  const env = checkEnv([
+    "NEXT_PUBLIC_SANITY_PROJECT_ID",
+    "NEXT_PUBLIC_SANITY_DATASET",
+    "SANITY_API_TOKEN",
+  ]);
+  if (!env.ok) {
     return {
       ok: false,
       error: {
         code: "missing-config",
-        message: `Sanity is not configured. Missing: ${missing.join(", ")} (see .env.example).`,
+        message: `Sanity is not configured. ${env.message}`,
       },
     };
   }
 
-  return { ok: true, data: createRealWriter(projectId, dataset, token) };
+  return {
+    ok: true,
+    data: createRealWriter(
+      process.env.NEXT_PUBLIC_SANITY_PROJECT_ID as string,
+      process.env.NEXT_PUBLIC_SANITY_DATASET as string,
+      process.env.SANITY_API_TOKEN as string,
+    ),
+  };
+}
+
+/**
+ * Test seam: when set, `getSanityReader` returns this reader instead of
+ * the real Sanity client. This is the only place Sanity reads can be faked.
+ */
+let sanityReaderOverride: SanityReader | null = null;
+
+export function setSanityReader(reader: SanityReader | null): void {
+  sanityReaderOverride = reader;
+}
+
+const SUMMARY_PROJECTION = `{
+  title,
+  "slug": slug.current,
+  summary,
+  publishedAt
+}`;
+
+const ARTICLE_PROJECTION = `{
+  title,
+  "slug": slug.current,
+  summary,
+  article,
+  "faqs": coalesce(faqs[]{ question, answer }, []),
+  "quiz": coalesce(quiz[]{ question, options, answer, explanation }, []),
+  publishedAt
+}`;
+
+function createRealReader(projectId: string, dataset: string): SanityReader {
+  // Read-only client: public dataset, no token, CDN is fine for reads.
+  const client = createClient({
+    projectId,
+    dataset,
+    apiVersion: SANITY_API_VERSION,
+    useCdn: true,
+  });
+
+  return {
+    fetchArticleSummaries: async () =>
+      client.fetch<HelpArticleSummary[]>(
+        `*[_type == "helpArticle" && defined(slug.current)] | order(publishedAt desc) ${SUMMARY_PROJECTION}`,
+      ),
+    fetchArticleBySlug: async (slug) =>
+      client.fetch<HelpArticle | null>(
+        `*[_type == "helpArticle" && slug.current == $slug][0] ${ARTICLE_PROJECTION}`,
+        { slug },
+      ),
+  };
+}
+
+/**
+ * Single entry point to Sanity reads. No token required — the Help Center
+ * reads the public dataset. Returns a typed result — a missing
+ * configuration never throws.
+ */
+export function getSanityReader(): SanityResult<SanityReader> {
+  if (sanityReaderOverride !== null) {
+    return { ok: true, data: sanityReaderOverride };
+  }
+
+  const env = checkEnv([
+    "NEXT_PUBLIC_SANITY_PROJECT_ID",
+    "NEXT_PUBLIC_SANITY_DATASET",
+  ]);
+  if (!env.ok) {
+    return {
+      ok: false,
+      error: {
+        code: "missing-config",
+        message: `Sanity is not configured. ${env.message}`,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    data: createRealReader(
+      process.env.NEXT_PUBLIC_SANITY_PROJECT_ID as string,
+      process.env.NEXT_PUBLIC_SANITY_DATASET as string,
+    ),
+  };
 }

@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { generateContent } from "@/actions/generate-content";
-import { setModelCaller } from "@/lib/ai";
+import { setModelCaller, setRetryDelays } from "@/lib/ai";
 import type { ContentBundle } from "@/lib/types";
 
 /**
@@ -26,8 +26,14 @@ const validBundle: ContentBundle = {
   ],
 };
 
+beforeEach(() => {
+  // Instant retries: no real waiting in tests.
+  setRetryDelays([0, 0]);
+});
+
 afterEach(() => {
   setModelCaller(null);
+  setRetryDelays(null);
   vi.unstubAllEnvs();
 });
 
@@ -80,7 +86,7 @@ describe("generateContent", () => {
 
   it("returns api-error when the provider call fails", async () => {
     setModelCaller(async () => {
-      throw new Error("rate limited");
+      throw new Error("network unreachable");
     });
 
     const result = await generateContent("Some documentation");

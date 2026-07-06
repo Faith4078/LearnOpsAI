@@ -12,6 +12,8 @@ const ERROR_MESSAGES = {
     "The AI service is not configured. Ask an administrator to set GEMINI_API_KEY.",
   "api-error":
     "The Review Agent could not be reached. Please try again in a moment.",
+  "rate-limit":
+    "The AI service is busy right now. Please wait a moment and try again.",
   "invalid-response":
     "The Review Agent returned content in an unexpected format. Please try again.",
 } as const;
