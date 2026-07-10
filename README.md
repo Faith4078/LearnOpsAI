@@ -1,6 +1,6 @@
 # KnowledgeOps AI
 
-**AI-powered Customer Education Operations.** KnowledgeOps AI turns raw product documentation into governed, reviewable, publish-ready knowledge assets — a help article, FAQs, and an interactive knowledge check — through an automated two-agent workflow, then publishes the reviewed asset to Sanity CMS, where it appears instantly in a public, searchable Help Center.
+**AI-powered Customer Education Operations.** KnowledgeOps AI turns raw product documentation into governed, reviewable, publish-ready knowledge assets — a help article, FAQs, and an interactive knowledge check through an automated two-agent workflow, then publishes the reviewed asset to Sanity CMS, where it appears instantly in a public, searchable Help Center.
 
 Built with **Next.js 16** (App Router + Server Actions), **Google Gemini**, and **Sanity CMS**, styled after the Harvey Legal Dark design system.
 
