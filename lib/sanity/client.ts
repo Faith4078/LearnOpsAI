@@ -129,7 +129,8 @@ const SUMMARY_PROJECTION = `{
   publishedAt,
   "difficulty": educationalMetadata.difficulty,
   "readingMinutes": educationalMetadata.estimatedReadingMinutes,
-  "reviewScore": governance.reviewScore
+  "reviewScore": governance.reviewScore,
+  "processingSeconds": governance.processingSeconds
 }`;
 
 const ARTICLE_PROJECTION = `{
@@ -152,21 +153,26 @@ const ARTICLE_PROJECTION = `{
     generatedBy,
     reviewAgentVersion,
     documentationVersion,
+    processingSeconds,
     lastReviewedAt
   },
   publishedAt,
   "difficulty": educationalMetadata.difficulty,
   "readingMinutes": educationalMetadata.estimatedReadingMinutes,
-  "reviewScore": governance.reviewScore
+  "reviewScore": governance.reviewScore,
+  "processingSeconds": governance.processingSeconds
 }`;
 
 function createRealReader(projectId: string, dataset: string): SanityReader {
-  // Read-only client: public dataset, no token, CDN is fine for reads.
+  // Read-only client: public dataset, no token. useCdn is false so reads
+  // hit the live API and are strongly consistent — a freshly published
+  // article appears on the very next request instead of lagging behind
+  // the eventually-consistent CDN edge.
   const client = createClient({
     projectId,
     dataset,
     apiVersion: SANITY_API_VERSION,
-    useCdn: true,
+    useCdn: false,
   });
 
   return {

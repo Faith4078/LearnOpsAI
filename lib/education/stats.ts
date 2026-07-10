@@ -1,69 +1,110 @@
+import { computeFreshness } from "@/lib/education/freshness";
+import {
+  freshnessHealth,
+  type GovernanceFreshness,
+} from "@/lib/education/governance";
 import type { HelpArticleSummary } from "@/lib/sanity";
 
-import { PLACEHOLDER_OPS_STATS } from "./placeholders";
-
 /**
- * Knowledge Operations Dashboard figures. Live values are computed from
- * the published documents; the rest are derived where possible and
- * otherwise come from the placeholder module.
+ * Knowledge Operations Dashboard figures — every value derived from the
+ * published article dataset, no placeholders. Recomputed on each request,
+ * so publishing or deleting an article updates the dashboard automatically.
  */
 export interface KnowledgeOpsStats {
-  /** Live: number of published Knowledge Assets. */
+  /** Total published Knowledge Assets currently stored in Sanity. */
   publishedCount: number;
-  /** Live: mean governance review score; null when no document has one. */
+  /** Successful Generator Agent runs — one per published asset. */
+  aiGenerations: number;
+  /** Successful Review Agent runs — assets carrying review metadata. */
+  aiReviewsCompleted: number;
+  /** Mean governance review score; null when no asset has one. */
   averageReviewScore: number | null;
-  /** Live: most recent publish date (ISO); null when nothing is published. */
+  /** Mean AI processing seconds; null when none is recorded. */
+  averageProcessingSeconds: number | null;
+  /** Mean freshness across the base as a health badge; null when empty. */
+  knowledgeBaseFreshness: GovernanceFreshness | null;
+  /** Most recent publish date (ISO); null when nothing is published. */
   lastPublishedAt: string | null;
-  /** Placeholder: no draft persistence exists yet. */
-  draftAssets: number;
-  /** Placeholder: no review queue exists yet. */
-  pendingReview: number;
-  /** Placeholder: pipeline run history is not stored. */
-  averageProcessingSeconds: number;
-  /** Derived from the average review score when available. */
-  knowledgeBaseHealth: string;
 }
 
-function deriveHealth(averageReviewScore: number | null): string {
-  if (averageReviewScore === null) {
-    return PLACEHOLDER_OPS_STATS.knowledgeBaseHealth;
-  }
-  if (averageReviewScore >= 85) return "Excellent";
-  if (averageReviewScore >= 70) return "Good";
-  return "Needs attention";
+/** Rounded mean of the given numbers, or null when there are none. */
+function average(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+/** Mean review score across the assets that carry one. */
+export function calculateAverageReviewScore(
+  summaries: HelpArticleSummary[],
+): number | null {
+  return average(
+    summaries
+      .map((summary) => summary.reviewScore)
+      .filter((score): score is number => typeof score === "number"),
+  );
+}
+
+/** Mean AI processing time (seconds) across the assets that recorded one. */
+export function calculateAverageProcessingTime(
+  summaries: HelpArticleSummary[],
+): number | null {
+  return average(
+    summaries
+      .map((summary) => summary.processingSeconds)
+      .filter((seconds): seconds is number => typeof seconds === "number"),
+  );
+}
+
+/** Number of assets carrying review metadata — i.e. completed AI reviews. */
+export function countAiReviewsCompleted(
+  summaries: HelpArticleSummary[],
+): number {
+  return summaries.filter((summary) => typeof summary.reviewScore === "number")
+    .length;
+}
+
+/** Mean freshness across the base, as a health badge plus its percentage. */
+export function calculateKnowledgeBaseFreshness(
+  summaries: HelpArticleSummary[],
+  now: Date = new Date(),
+): GovernanceFreshness | null {
+  const percent = average(
+    summaries
+      .map((summary) => computeFreshness({ publishedAt: summary.publishedAt }, now)?.score)
+      .filter((score): score is number => typeof score === "number"),
+  );
+  if (percent === null) return null;
+  return { badge: freshnessHealth(percent), percent };
+}
+
+/** Most recent publish date (ISO), or null when nothing is published. */
+export function getLastPublishedDate(
+  summaries: HelpArticleSummary[],
+): string | null {
+  const timestamps = summaries
+    .map((summary) => Date.parse(summary.publishedAt))
+    .filter((timestamp) => !Number.isNaN(timestamp));
+  if (timestamps.length === 0) return null;
+  return new Date(Math.max(...timestamps)).toISOString();
 }
 
 /**
- * Pure, deterministic merge of live figures computed from the article
- * summaries with the placeholder figures — the dashboard's single data
- * shape.
+ * Assembles the dashboard's single data shape from the article summaries.
+ * Pure and deterministic — the seam the fetch action and the dashboard
+ * share. `now` is injectable so freshness is testable.
  */
 export function computeKnowledgeOpsStats(
   summaries: HelpArticleSummary[],
+  now: Date = new Date(),
 ): KnowledgeOpsStats {
-  const scores = summaries
-    .map((summary) => summary.reviewScore)
-    .filter((score): score is number => typeof score === "number");
-  const averageReviewScore =
-    scores.length === 0
-      ? null
-      : Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
-
-  const publishTimestamps = summaries
-    .map((summary) => Date.parse(summary.publishedAt))
-    .filter((timestamp) => !Number.isNaN(timestamp));
-  const lastPublishedAt =
-    publishTimestamps.length === 0
-      ? null
-      : new Date(Math.max(...publishTimestamps)).toISOString();
-
   return {
     publishedCount: summaries.length,
-    averageReviewScore,
-    lastPublishedAt,
-    draftAssets: PLACEHOLDER_OPS_STATS.draftAssets,
-    pendingReview: PLACEHOLDER_OPS_STATS.pendingReview,
-    averageProcessingSeconds: PLACEHOLDER_OPS_STATS.averageProcessingSeconds,
-    knowledgeBaseHealth: deriveHealth(averageReviewScore),
+    // Every published asset is the product of one successful generation.
+    aiGenerations: summaries.length,
+    aiReviewsCompleted: countAiReviewsCompleted(summaries),
+    averageReviewScore: calculateAverageReviewScore(summaries),
+    averageProcessingSeconds: calculateAverageProcessingTime(summaries),
+    knowledgeBaseFreshness: calculateKnowledgeBaseFreshness(summaries, now),
+    lastPublishedAt: getLastPublishedDate(summaries),
   };
 }

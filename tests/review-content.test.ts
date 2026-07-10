@@ -89,6 +89,72 @@ describe("reviewContent", () => {
     expect(prompts[0]).toContain(draftBundle.faqs[0].answer);
   });
 
+  it("autonomously retries when the Review Agent first returns unusable output", async () => {
+    let calls = 0;
+    setModelCaller(async () => {
+      calls += 1;
+      // First attempt: malformed output. Second attempt: a valid review.
+      return calls === 1 ? "not valid json {" : JSON.stringify(reviewResponse);
+    });
+
+    const result = await reviewContent(draftBundle);
+
+    // Recovered on its own — no human re-run needed.
+    expect(result).toEqual({
+      status: "success",
+      bundle: improvedBundle,
+      report: reviewReport,
+    });
+    expect(calls).toBe(2);
+  });
+
+  it("re-prompts when the model returns JSON that fails the review schema", async () => {
+    let calls = 0;
+    setModelCaller(async () => {
+      calls += 1;
+      // First attempt: score out of range. Second attempt: a valid review.
+      return calls === 1
+        ? JSON.stringify({
+            bundle: improvedBundle,
+            reviewReport: { ...reviewReport, overallQualityScore: 250 },
+          })
+        : JSON.stringify(reviewResponse);
+    });
+
+    const result = await reviewContent(draftBundle);
+
+    expect(result.status).toBe("success");
+    expect(calls).toBe(2);
+  });
+
+  it("gives up after exhausting the review retries", async () => {
+    let calls = 0;
+    setModelCaller(async () => {
+      calls += 1;
+      return "still not valid json {";
+    });
+
+    const result = await reviewContent(draftBundle);
+
+    expect(result).toMatchObject({ status: "error", code: "invalid-response" });
+    expect(calls).toBe(3); // MAX_REVIEW_ATTEMPTS
+  });
+
+  it("does not re-prompt on a transport failure (already retried by the provider)", async () => {
+    let calls = 0;
+    setModelCaller(async () => {
+      calls += 1;
+      throw new Error("network unreachable");
+    });
+
+    const result = await reviewContent(draftBundle);
+
+    expect(result).toMatchObject({ status: "error", code: "api-error" });
+    // 3 transport attempts inside generateWithGemini, but the action does
+    // not re-prompt on top of them (no 9-call blow-up).
+    expect(calls).toBe(3);
+  });
+
   it("returns invalid-response when the QA report is missing", async () => {
     // A bare bundle (the pre-report response shape) is no longer valid.
     setModelCaller(async () => JSON.stringify(improvedBundle));

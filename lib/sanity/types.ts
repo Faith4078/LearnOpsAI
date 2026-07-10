@@ -19,6 +19,8 @@ export interface ArticleGovernance {
   reviewAgentVersion: string;
   /** Fingerprint/label of the source documentation the asset came from. */
   documentationVersion: string;
+  /** Wall-clock seconds the AI pipeline (generate + review) took to produce it. */
+  processingSeconds: number;
   lastReviewedAt: string;
 }
 
@@ -60,6 +62,8 @@ export interface HelpArticleSummary {
   readingMinutes?: number | null;
   /** Absent on documents published before governance existed. */
   reviewScore?: number | null;
+  /** Seconds the AI pipeline took; absent before this was recorded. */
+  processingSeconds?: number | null;
 }
 
 /** The full `helpArticle` document as read back from Sanity. */

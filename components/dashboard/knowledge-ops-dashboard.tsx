@@ -4,25 +4,21 @@ import { formatPublishedDate } from "@/utils/date";
 interface StatTile {
   label: string;
   value: string;
-  /** Marks figures not yet computed from live data. */
-  note?: string;
 }
 
 function buildTiles(stats: KnowledgeOpsStats | null): StatTile[] {
   return [
     {
-      label: "Published assets",
+      label: "Published articles",
       value: stats === null ? "—" : String(stats.publishedCount),
     },
     {
-      label: "Draft assets",
-      value: stats === null ? "—" : String(stats.draftAssets),
-      note: "estimate",
+      label: "AI generations",
+      value: stats === null ? "—" : String(stats.aiGenerations),
     },
     {
-      label: "Pending review",
-      value: stats === null ? "—" : String(stats.pendingReview),
-      note: "estimate",
+      label: "AI reviews completed",
+      value: stats === null ? "—" : String(stats.aiReviewsCompleted),
     },
     {
       label: "Avg review score",
@@ -33,12 +29,17 @@ function buildTiles(stats: KnowledgeOpsStats | null): StatTile[] {
     },
     {
       label: "Avg processing time",
-      value: stats === null ? "—" : `${stats.averageProcessingSeconds}s`,
-      note: "estimate",
+      value:
+        stats?.averageProcessingSeconds == null
+          ? "—"
+          : `${stats.averageProcessingSeconds}s`,
     },
     {
-      label: "Knowledge base health",
-      value: stats === null ? "—" : stats.knowledgeBaseHealth,
+      label: "Knowledge base freshness",
+      value:
+        stats?.knowledgeBaseFreshness == null
+          ? "—"
+          : `${stats.knowledgeBaseFreshness.badge.label} (${stats.knowledgeBaseFreshness.percent}%)`,
     },
     {
       label: "Last published",
@@ -58,9 +59,10 @@ interface KnowledgeOpsDashboardProps {
 }
 
 /**
- * Compact Knowledge Operations Dashboard: the state of the knowledge
- * base at a glance. Live figures where computable; the rest are
- * clearly-marked estimates from the placeholder module.
+ * Compact Knowledge Operations Dashboard: the health and performance of
+ * the AI-powered publishing pipeline at a glance. Every figure is derived
+ * live from the published article dataset — no workflow states the MVP
+ * does not implement, and no placeholder numbers.
  */
 export function KnowledgeOpsDashboard({
   stats,
@@ -90,11 +92,6 @@ export function KnowledgeOpsDashboard({
             <dd className="font-serif text-2xl font-normal tracking-tight">
               {tile.value}
             </dd>
-            {tile.note !== undefined && (
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-                {tile.note}
-              </p>
-            )}
           </div>
         ))}
       </dl>

@@ -15,7 +15,7 @@ export interface Freshness {
   label: FreshnessLabel;
 }
 
-function freshnessLabel(score: number): FreshnessLabel {
+export function freshnessLabel(score: number): FreshnessLabel {
   if (score >= 75) return "Fresh";
   if (score >= 40) return "Aging";
   return "Stale";

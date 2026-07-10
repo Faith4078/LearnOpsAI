@@ -53,6 +53,49 @@ describe("generateContent", () => {
     expect(result).toEqual({ status: "success", bundle: validBundle });
   });
 
+  it("autonomously retries when the Generator Agent first returns unusable output", async () => {
+    let calls = 0;
+    setModelCaller(async () => {
+      calls += 1;
+      // First attempt: malformed output. Second attempt: a valid bundle.
+      return calls === 1 ? "this is not json {" : JSON.stringify(validBundle);
+    });
+
+    const result = await generateContent("Some documentation");
+
+    // Recovered on its own — no human re-run needed.
+    expect(result).toEqual({ status: "success", bundle: validBundle });
+    expect(calls).toBe(2);
+  });
+
+  it("gives up after exhausting the generation retries", async () => {
+    let calls = 0;
+    setModelCaller(async () => {
+      calls += 1;
+      return "still not valid json {";
+    });
+
+    const result = await generateContent("Some documentation");
+
+    expect(result).toMatchObject({ status: "error", code: "invalid-response" });
+    expect(calls).toBe(3); // MAX_GENERATION_ATTEMPTS
+  });
+
+  it("does not re-prompt on a transport failure (already retried by the provider)", async () => {
+    let calls = 0;
+    setModelCaller(async () => {
+      calls += 1;
+      throw new Error("network unreachable");
+    });
+
+    const result = await generateContent("Some documentation");
+
+    expect(result).toMatchObject({ status: "error", code: "api-error" });
+    // 3 transport attempts inside generateWithGemini, but the action does
+    // not re-prompt on top of them (no 9-call blow-up).
+    expect(calls).toBe(3);
+  });
+
   it("returns invalid-response when the model returns malformed JSON", async () => {
     setModelCaller(async () => "this is not json {");
 

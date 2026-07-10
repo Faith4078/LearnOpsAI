@@ -1,11 +1,13 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { generateContent } from "@/actions/generate-content";
 import { publishToSanity } from "@/actions/publish-to-sanity";
 import { reviewContent } from "@/actions/review-content";
+import { documentationName } from "@/lib/education/documentation-name";
 import { fingerprintDocumentation } from "@/lib/education/fingerprint";
 import type {
   ContentBundle,
@@ -55,13 +57,19 @@ export function useContentGeneration(): ContentGeneration {
   >(null);
   const [publishedSlug, setPublishedSlug] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const router = useRouter();
 
   const generate = (documentation: string) => {
     setBundle(null);
     setReport(null);
     setFailedStage(null);
     setStageDurations({});
-    setDocumentationVersion(fingerprintDocumentation(documentation));
+    // Record the source Markdown's own name as the documentation identity,
+    // falling back to a fingerprint when the docs have no discernible name.
+    setDocumentationVersion(
+      documentationName(documentation) ||
+        fingerprintDocumentation(documentation),
+    );
     setPublishedSlug(null);
     setStage("generating");
     startTransition(async () => {
@@ -112,9 +120,20 @@ export function useContentGeneration(): ContentGeneration {
     setStage("publishing");
     startTransition(async () => {
       const publishStart = performance.now();
+      // The asset's processing time is the two AI stages that produced it
+      // (generation + review); publishing is I/O, not asset production.
+      const processingSeconds = Math.max(
+        0,
+        Math.round(
+          ((stageDurations.generating ?? 0) +
+            (stageDurations.reviewing ?? 0)) /
+            1000,
+        ),
+      );
       const published = await publishToSanity(bundle, {
         report,
         documentationVersion,
+        processingSeconds,
       });
       if (published.status === "error") {
         setFailedStage("publishing");
@@ -129,6 +148,9 @@ export function useContentGeneration(): ContentGeneration {
       setPublishedSlug(published.slug);
       setStage("published");
       toast.success("Knowledge asset published to the knowledge base.");
+      // Take the operator to the Help Center, where the article they just
+      // published now appears, rather than leaving them on the pipeline.
+      router.push("/help-center");
     });
   };
 

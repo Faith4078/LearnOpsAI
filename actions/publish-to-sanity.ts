@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import {
   contentBundleSchema,
   GEMINI_MODEL,
@@ -28,6 +30,8 @@ export interface PublishReviewRecord {
   report: ReviewReport;
   /** Fingerprint/label of the source documentation for this run. */
   documentationVersion: string;
+  /** Wall-clock seconds the AI pipeline (generate + review) took this run. */
+  processingSeconds: number;
 }
 
 /**
@@ -48,7 +52,10 @@ export async function publishToSanity(
     !parsed.success ||
     !parsedReport.success ||
     typeof review.documentationVersion !== "string" ||
-    review.documentationVersion.length === 0
+    review.documentationVersion.length === 0 ||
+    typeof review.processingSeconds !== "number" ||
+    !Number.isFinite(review.processingSeconds) ||
+    review.processingSeconds < 0
   ) {
     return {
       status: "error",
@@ -85,10 +92,16 @@ export async function publishToSanity(
         generatedBy: GEMINI_MODEL,
         reviewAgentVersion: REVIEW_AGENT_VERSION,
         documentationVersion: review.documentationVersion,
+        processingSeconds: Math.round(review.processingSeconds),
         lastReviewedAt: now,
       },
       publishedAt: now,
     });
+    // Drop any client router cache for the surfaces that list this article
+    // so it appears immediately after publishing, not on the next reload.
+    revalidatePath("/help-center");
+    revalidatePath(`/help-center/${slug}`);
+    revalidatePath("/");
     return { status: "success", slug };
   } catch {
     return {

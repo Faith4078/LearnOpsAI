@@ -8,6 +8,10 @@ import type { HelpArticleDoc, SanityWriter } from "@/lib/sanity";
 import type { ContentBundle, ReviewReport } from "@/lib/types";
 import { dedupeSlug, normalizeSlug } from "@/utils/slug";
 
+// revalidatePath needs a Next.js request context that vitest doesn't
+// provide; stub it to a no-op so publish tests exercise the write path.
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+
 /**
  * Seam tests: `publishToSanity` end-to-end with Sanity faked at its
  * single injection point (`setSanityWriter` in lib/sanity/client.ts).
@@ -49,6 +53,7 @@ const validReport: ReviewReport = {
 const validReview: PublishReviewRecord = {
   report: validReport,
   documentationVersion: "doc-0a1b2c3d",
+  processingSeconds: 42,
 };
 
 function fakeWriter(overrides: Partial<SanityWriter> = {}): {
@@ -121,6 +126,7 @@ describe("publishToSanity", () => {
     expect(governance.documentationVersion).toBe(
       validReview.documentationVersion,
     );
+    expect(governance.processingSeconds).toBe(42);
     // lastReviewedAt is stamped at publish time, matching publishedAt.
     expect(governance.lastReviewedAt).toBe(created[0].publishedAt);
     expect(Date.parse(governance.lastReviewedAt)).toBeGreaterThanOrEqual(
@@ -151,6 +157,19 @@ describe("publishToSanity", () => {
     const result = await publishToSanity(validBundle, {
       ...validReview,
       documentationVersion: "",
+    });
+
+    expect(result).toMatchObject({ status: "error", code: "invalid-response" });
+    expect(created).toHaveLength(0);
+  });
+
+  it("rejects an invalid processing time without touching Sanity", async () => {
+    const { writer, created } = fakeWriter();
+    setSanityWriter(writer);
+
+    const result = await publishToSanity(validBundle, {
+      ...validReview,
+      processingSeconds: -1,
     });
 
     expect(result).toMatchObject({ status: "error", code: "invalid-response" });

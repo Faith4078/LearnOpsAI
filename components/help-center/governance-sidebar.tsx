@@ -1,12 +1,27 @@
-import { computeFreshness } from "@/lib/education/freshness";
-import { cn } from "@/lib/utils";
-import type { ArticleGovernance } from "@/lib/sanity";
-import type { PublishingRecommendation } from "@/lib/types";
-import { formatPublishedDate } from "@/utils/date";
+import type { ReactNode } from "react";
 
-const RECOMMENDATION_LABELS: Record<PublishingRecommendation, string> = {
-  ready: "Ready to Publish",
-  "needs-attention": "Needs Attention",
+import {
+  buildGovernanceMetadata,
+  type GovernanceAgent,
+  type GovernanceBadge,
+  type GovernanceTone,
+} from "@/lib/education/governance";
+import type { ArticleGovernance } from "@/lib/sanity";
+import { cn } from "@/lib/utils";
+
+/** Pill color per semantic tone — reuses the app's emerald/amber/rose scale. */
+const TONE_STYLES: Record<GovernanceTone, string> = {
+  success: "border-emerald-600/30 text-emerald-700 dark:text-emerald-400",
+  warning: "border-amber-600/30 text-amber-700 dark:text-amber-400",
+  danger: "border-rose-600/30 text-rose-700 dark:text-rose-400",
+  neutral: "border-border text-foreground",
+};
+
+const TONE_DOTS: Record<GovernanceTone, string> = {
+  success: "bg-emerald-500",
+  warning: "bg-amber-500",
+  danger: "bg-rose-500",
+  neutral: "bg-muted-foreground",
 };
 
 interface GovernanceSidebarProps {
@@ -15,104 +30,141 @@ interface GovernanceSidebarProps {
   publishedAt: string;
 }
 
-function GovernanceRow({ label, value }: { label: string; value: string }) {
+/** A labelled pill, colored by tone, optionally led by a status dot. */
+function Badge({
+  badge,
+  withDot = false,
+}: {
+  badge: GovernanceBadge;
+  withDot?: boolean;
+}) {
   return (
-    <div className="grid gap-0.5">
+    <span
+      className={cn(
+        "inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide",
+        TONE_STYLES[badge.tone],
+      )}
+    >
+      {withDot && (
+        <span
+          aria-hidden="true"
+          className={cn("size-1.5 rounded-full", TONE_DOTS[badge.tone])}
+        />
+      )}
+      {badge.label}
+    </span>
+  );
+}
+
+/** A pipeline agent: its role, with the powering model beneath. */
+function Agent({ agent }: { agent: GovernanceAgent }) {
+  return (
+    <>
+      <span className="block font-medium text-foreground">{agent.role}</span>
+      {agent.poweredBy && (
+        <span className="mt-0.5 block text-xs text-muted-foreground">
+          {agent.poweredBy}
+        </span>
+      )}
+    </>
+  );
+}
+
+/** One label/value pair, stacked, divided from its neighbors. */
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-1.5 py-3.5 first:pt-0 last:pb-0">
       <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
-      <dd className="text-sm text-foreground">{value}</dd>
+      <dd className="text-sm text-foreground">{children}</dd>
     </div>
   );
 }
 
 /**
- * Content Governance panel for an article page: review outcome,
- * freshness, and provenance of the Knowledge Asset. Renders gracefully
- * for documents published before governance fields existed.
+ * Content Governance panel for an article page: operational metadata for
+ * a published Knowledge Asset — lifecycle status, AI quality assurance,
+ * provenance, freshness, and the review cadence. Renders purely from a
+ * `GovernanceMetadata` object, and skips fields that legacy documents
+ * (published before governance existed) lack.
  */
 export function GovernanceSidebar({
   governance,
   publishedAt,
 }: GovernanceSidebarProps) {
-  const freshness = computeFreshness({
-    publishedAt,
-    lastReviewedAt: governance?.lastReviewedAt,
-  });
+  const metadata = buildGovernanceMetadata(governance, publishedAt);
 
   return (
     <aside
       aria-label="Content governance"
       className="h-fit rounded-lg border bg-card p-6 lg:sticky lg:top-24"
     >
-      <h2 className="mb-5 font-serif text-lg font-normal tracking-tight">
+      <h2 className="mb-4 font-serif text-lg font-normal tracking-tight">
         Content Governance
       </h2>
-      <dl className="grid gap-4">
-        <GovernanceRow label="Status" value="Published" />
-        {typeof governance?.reviewScore === "number" && (
-          <GovernanceRow
-            label="Review score"
-            value={`${governance.reviewScore} / 100`}
-          />
-        )}
-        {governance?.publishingRecommendation !== undefined &&
-          governance.publishingRecommendation in RECOMMENDATION_LABELS && (
-            <GovernanceRow
-              label="Review outcome"
-              value={
-                RECOMMENDATION_LABELS[governance.publishingRecommendation]
-              }
-            />
-          )}
-        {freshness !== null && (
-          <div className="grid gap-1">
-            <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Freshness
-            </dt>
-            <dd className="grid gap-1.5">
-              <span className="text-sm text-foreground">
-                {freshness.label} — {freshness.score} / 100
+      <dl className="divide-y divide-border/60">
+        <Field label="Status">
+          <Badge badge={metadata.status} withDot />
+        </Field>
+
+        {metadata.reviewScore !== null && (
+          <Field label="Review Score">
+            <span className="flex items-baseline gap-1">
+              <span className="font-serif text-2xl font-normal tracking-tight text-foreground">
+                {metadata.reviewScore}
               </span>
-              <span
-                aria-hidden="true"
-                className="block h-1 w-full overflow-hidden rounded-full bg-border"
-              >
-                <span
-                  className={cn(
-                    "block h-full rounded-full bg-foreground/70 transition-all",
-                  )}
-                  style={{ width: `${freshness.score}%` }}
-                />
+              <span className="text-xs text-muted-foreground">/ 100</span>
+            </span>
+          </Field>
+        )}
+
+        {metadata.qualityRecommendation !== null && (
+          <Field label="Review Outcome">
+            <Badge badge={metadata.qualityRecommendation} />
+          </Field>
+        )}
+
+        {metadata.contentFreshness !== null && (
+          <Field label="Content Freshness">
+            <span className="flex items-center gap-2">
+              <Badge badge={metadata.contentFreshness.badge} />
+              <span className="text-sm text-muted-foreground">
+                ({metadata.contentFreshness.percent}%)
               </span>
-            </dd>
-          </div>
+            </span>
+          </Field>
         )}
-        {governance?.generatedBy && (
-          <GovernanceRow label="Generated by" value={governance.generatedBy} />
+
+        {metadata.documentationVersion !== null && (
+          <Field label="Documentation Version">
+            <code className="inline-flex w-fit items-center rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
+              {metadata.documentationVersion}
+            </code>
+          </Field>
         )}
-        {governance?.reviewAgentVersion && (
-          <GovernanceRow
-            label="Review agent"
-            value={governance.reviewAgentVersion}
-          />
+
+        {metadata.generatedBy !== null && (
+          <Field label="Generated By">
+            <Agent agent={metadata.generatedBy} />
+          </Field>
         )}
-        {governance?.documentationVersion && (
-          <GovernanceRow
-            label="Documentation version"
-            value={governance.documentationVersion}
-          />
+
+        {metadata.reviewedBy !== null && (
+          <Field label="Reviewed By">
+            <Agent agent={metadata.reviewedBy} />
+          </Field>
         )}
-        {governance?.lastReviewedAt && (
-          <GovernanceRow
-            label="Last reviewed"
-            value={formatPublishedDate(governance.lastReviewedAt)}
-          />
+
+        <Field label="Published">{metadata.publishedAt}</Field>
+
+        {metadata.lastReviewedAt !== null && (
+          <Field label="Last Reviewed">{metadata.lastReviewedAt}</Field>
         )}
-        <GovernanceRow
-          label="Published"
-          value={formatPublishedDate(publishedAt)}
-        />
+
+        {metadata.nextReviewDue !== null && (
+          <Field label="Next Review Due">{metadata.nextReviewDue}</Field>
+        )}
       </dl>
     </aside>
   );

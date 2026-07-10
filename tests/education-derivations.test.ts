@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { documentationName } from "@/lib/education/documentation-name";
 import { fingerprintDocumentation } from "@/lib/education/fingerprint";
 import { computeFreshness } from "@/lib/education/freshness";
 
@@ -21,6 +22,37 @@ describe("fingerprintDocumentation", () => {
     expect(fingerprintDocumentation("version one")).not.toBe(
       fingerprintDocumentation("version two"),
     );
+  });
+});
+
+describe("documentationName", () => {
+  it("uses the first Markdown H1 heading", () => {
+    expect(documentationName("# Matter Search\n\nSearch across matters.")).toBe(
+      "Matter Search",
+    );
+  });
+
+  it("ignores closing hashes and leading blank lines", () => {
+    expect(documentationName("\n\n#   Billing Portal   #\n\nText")).toBe(
+      "Billing Portal",
+    );
+  });
+
+  it("does not treat a deeper heading as the name", () => {
+    // "## Overview" is not an H1, so the first non-empty line wins.
+    expect(documentationName("Release Notes\n\n## Overview")).toBe(
+      "Release Notes",
+    );
+  });
+
+  it("falls back to the first non-empty line when there is no heading", () => {
+    expect(documentationName("   \n\nMatter Search overview\nMore text")).toBe(
+      "Matter Search overview",
+    );
+  });
+
+  it("returns an empty string for blank input", () => {
+    expect(documentationName("   \n\t\n")).toBe("");
   });
 });
 

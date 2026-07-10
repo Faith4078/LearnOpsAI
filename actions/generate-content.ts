@@ -20,10 +20,28 @@ const ERROR_MESSAGES = {
     "The AI returned content in an unexpected format. Please try again.",
 } as const;
 
+type GenerateErrorCode = keyof typeof ERROR_MESSAGES;
+
 /**
- * Generator Agent: turns raw documentation into a validated content
- * bundle in a single Gemini call. Never throws — every failure maps to
- * a typed error the UI can render as a friendly message.
+ * How many times the Generator Agent re-attempts generation when the model
+ * returns unusable output (malformed JSON, or content that fails the bundle
+ * schema). This is autonomous recovery from a flaky generation — distinct
+ * from, and layered on top of, the transport-level retries that
+ * `generateWithGemini` already performs for transient network failures.
+ */
+const MAX_GENERATION_ATTEMPTS = 3;
+
+/**
+ * Generator Agent: turns raw documentation into a validated content bundle
+ * in a single Gemini call.
+ *
+ * When the model returns unusable output, generation is re-attempted up to
+ * `MAX_GENERATION_ATTEMPTS` times without any human intervention; only if
+ * every attempt fails does the failure surface. Transport failures
+ * (api-error, rate-limit) are already retried inside `generateWithGemini`
+ * and missing-config is terminal, so those short-circuit rather than
+ * re-prompting. Never throws — every failure maps to a typed error the UI
+ * can render as a friendly message.
  */
 export async function generateContent(
   documentation: string,
@@ -36,23 +54,28 @@ export async function generateContent(
     };
   }
 
-  const result = await generateWithGemini(buildGeneratorPrompt(documentation));
-  if (!result.ok) {
-    return {
-      status: "error",
-      code: result.error.code,
-      message: ERROR_MESSAGES[result.error.code],
-    };
+  const prompt = buildGeneratorPrompt(documentation);
+
+  let lastError: GenerateErrorCode = "invalid-response";
+  for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
+    const result = await generateWithGemini(prompt);
+    if (!result.ok) {
+      lastError = result.error.code;
+      // Only unusable model output is worth re-prompting. Transport errors
+      // are already retried with backoff inside generateWithGemini, and
+      // missing-config is terminal — re-prompting those would not help.
+      if (result.error.code !== "invalid-response") break;
+      continue;
+    }
+
+    const parsed = contentBundleSchema.safeParse(result.data);
+    if (parsed.success) {
+      return { status: "success", bundle: parsed.data };
+    }
+
+    // Well-formed JSON that does not match the bundle schema — re-prompt.
+    lastError = "invalid-response";
   }
 
-  const parsed = contentBundleSchema.safeParse(result.data);
-  if (!parsed.success) {
-    return {
-      status: "error",
-      code: "invalid-response",
-      message: ERROR_MESSAGES["invalid-response"],
-    };
-  }
-
-  return { status: "success", bundle: parsed.data };
+  return { status: "error", code: lastError, message: ERROR_MESSAGES[lastError] };
 }

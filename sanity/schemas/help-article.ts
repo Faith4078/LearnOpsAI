@@ -147,6 +147,11 @@ export const helpArticle = {
           type: "string",
         },
         {
+          name: "processingSeconds",
+          title: "Processing Time (seconds)",
+          type: "number",
+        },
+        {
           name: "lastReviewedAt",
           title: "Last Reviewed At",
           type: "datetime",
