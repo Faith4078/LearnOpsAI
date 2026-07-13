@@ -200,15 +200,3 @@ pnpm test
 
 ---
 
-## Future Improvements
-
-- **Claude / OpenAI support** — the `generateWithGemini` boundary makes adding providers a one-module change.
-- **Multi-agent orchestration** — specialized agents (structure, tone, fact-check) over the same bundle contract.
-- **ElevenLabs narration** — audio versions of published articles.
-- **Skilljar LMS integration** — push quizzes and articles into formal course flows.
-- **Content-freshness monitoring** — flag published articles whose source documentation has changed.
-- **Scheduled review agents** — periodic re-review of the live catalog for accuracy and tone drift.
-- **Semantic search** — embedding-based Help Center search beyond keyword matching.
-- **Analytics dashboard** — article views, search misses, quiz pass rates.
-- **Human approval workflows** — multi-reviewer sign-off gates between review and publish.
-```
